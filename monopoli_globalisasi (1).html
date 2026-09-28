@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monopoli Globalisasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            overflow-x: hidden;
+        }
+
+        /* Styling for the board container to maintain aspect ratio of the image */
+        #board-container {
+            background-image: url('https://lh3.googleusercontent.com/d/1dirHgc884_zsLFn_pYID712pTsEIrqH2');
+            background-size: 100% 100%; /* Stretch slightly to fit perfectly */
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border-radius: 1rem;
+            border: 4px solid #1e3a8a;
+        }
+
+        /* Token animation */
+        .token {
+            position: absolute;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            border: 2px solid white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Dice shake animation */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-10deg); }
+            20% { transform: translate(-3px, 0px) rotate(10deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(10deg); }
+            50% { transform: translate(-1px, 2px) rotate(-10deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-10deg); }
+            80% { transform: translate(-1px, -1px) rotate(10deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-10deg); }
+        }
+
+        .rolling {
+            animation: shake 0.5s;
+            animation-iteration-count: infinite;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row text-gray-800">
+
+    <!-- Left Area: Game Board -->
+    <div class="w-full md:w-2/3 h-[50vh] md:h-screen p-2 md:p-6 flex items-center justify-center bg-blue-50">
+        <!-- We use aspect ratio approx 3:2 matching the provided image -->
+        <div id="board-wrapper" class="w-full max-w-5xl aspect-[1.53/1] relative">
+            <div id="board-container" class="w-full h-full">
+                <!-- Tokens will be dynamically added here via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Area: Control Panel & Scoreboard -->
+    <div class="w-full md:w-1/3 h-[50vh] md:h-screen bg-white shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.1)] flex flex-col z-20">
+        
+        <div class="p-6 pb-2 border-b border-gray-100 bg-blue-600 text-white flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-black uppercase tracking-wider">Monopoli</h1>
+                <h2 class="text-sm font-semibold opacity-90">Globalisasi</h2>
+            </div>
+            <i class="fas fa-globe-americas text-4xl opacity-80"></i>
+        </div>
+
+        <!-- Turn & Dice Area -->
+        <div class="p-6 bg-gray-50 border-b border-gray-200 text-center">
+            <h3 id="turn-indicator" class="text-xl font-bold mb-4 text-blue-900 bg-blue-100 py-2 px-4 rounded-full inline-block">
+                Giliran: Kelompok 1
+            </h3>
+            
+            <div class="flex justify-center gap-4 mb-6">
+                <div id="dice1" class="w-16 h-16 bg-white rounded-2xl shadow-lg border-2 border-gray-200 flex flex-col items-center justify-center text-3xl text-gray-700 font-black">
+                    <i class="fas fa-dice-one"></i>
+                </div>
+                <div id="dice2" class="w-16 h-16 bg-white rounded-2xl shadow-lg border-2 border-gray-200 flex flex-col items-center justify-center text-3xl text-gray-700 font-black">
+                    <i class="fas fa-dice-one"></i>
+                </div>
+            </div>
+            
+            <button id="btn-roll" onclick="rollDice()" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg transform transition active:scale-95 text-lg flex items-center justify-center gap-2">
+                <i class="fas fa-dice"></i> Kocok Dadu
+            </button>
+        </div>
+
+        <!-- Scoreboard -->
+        <div class="flex-1 p-6 overflow-y-auto">
+            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Papan Skor</h3>
+            <div id="scoreboard" class="flex flex-col gap-3">
+                <!-- Group rows injected here -->
+            </div>
+        </div>
+
+        <!-- End Game Button Area -->
+        <div class="p-6 bg-white border-t border-gray-100">
+            <button onclick="confirmEndGame()" class="w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition duration-200 flex items-center justify-center gap-2 border border-red-200">
+                <i class="fas fa-flag-checkered"></i> Akhiri Permainan
+            </button>
+        </div>
+    </div>
+
+    <!-- Action Modal (Hidden by default) -->
+    <div id="action-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-95 opacity-0" id="modal-content">
+            
+            <!-- Modal Header -->
+            <div id="modal-header" class="p-6 text-center text-white bg-blue-600 relative">
+                <div class="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3 backdrop-blur-md">
+                    <i id="modal-icon" class="fas fa-question text-3xl"></i>
+                </div>
+                <h2 id="modal-title" class="text-3xl font-black mb-1">Misi</h2>
+                <p id="modal-points" class="text-xl font-bold text-blue-100">+20 Global</p>
+                <div class="absolute top-4 right-4 bg-white text-blue-800 text-xs font-bold px-2 py-1 rounded">
+                    Kelompok <span id="modal-group-num">1</span>
+                </div>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-8 text-center bg-gray-50">
+                <p id="modal-desc" class="text-lg text-gray-700 font-medium mb-6">
+                    Guru membacakan soal dari kartu. Apakah kelompok ini menjawab dengan benar?
+                </p>
+                
+                <!-- Dynamic Action Buttons -->
+                <div id="modal-actions" class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <!-- Buttons will be injected here based on tile type -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm End Game Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[60] p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all scale-95 opacity-0" id="confirm-content">
+            <div class="text-red-500 text-6xl mb-4"><i class="fas fa-exclamation-circle"></i></div>
+            <h2 class="text-2xl font-black mb-2">Akhiri Permainan?</h2>
+            <p class="text-gray-600 mb-6 font-medium">Permainan akan dihentikan dan juara akan ditentukan. Anda yakin?</p>
+            <div class="flex gap-4">
+                <button onclick="cancelEndGame()" class="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-xl transition-colors">Batal</button>
+                <button onclick="executeEndGame()" class="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-red-500/30">Ya, Akhiri</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="victory-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center z-[70] p-4">
+        <div class="bg-gradient-to-br from-yellow-50 to-yellow-200 rounded-3xl shadow-2xl max-w-2xl w-full p-6 md:p-8 text-center transform transition-all scale-95 opacity-0 relative overflow-hidden" id="victory-content">
+            <!-- Decorative background elements -->
+            <div class="absolute -top-10 -left-10 text-yellow-300/50 text-9xl"><i class="fas fa-star"></i></div>
+            <div class="absolute -bottom-10 -right-10 text-yellow-300/50 text-9xl"><i class="fas fa-trophy"></i></div>
+            
+            <div class="relative z-10">
+                <div class="text-yellow-600 text-6xl mb-4 animate-bounce"><i class="fas fa-crown"></i></div>
+                <h2 class="text-3xl md:text-4xl font-black text-yellow-800 mb-2 drop-shadow-sm">PERMAINAN SELESAI!</h2>
+                <p class="text-yellow-700 font-bold mb-8 text-sm md:text-base">Berikut adalah klasemen akhir para penjelajah dunia:</p>
+                
+                <div id="leaderboard" class="flex flex-col gap-3 mb-8">
+                    <!-- Leaderboard rows injected here -->
+                </div>
+                
+                <button onclick="location.reload()" class="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-black text-lg rounded-xl shadow-xl transform transition active:scale-95 flex items-center justify-center gap-2 mx-auto border-2 border-yellow-300">
+                    <i class="fas fa-redo"></i> Main Lagi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA DEFINITIONS ---
+
+        // 5 Groups Data
+        const groups = [
+            { id: 1, name: 'Kelompok 1', score: 0, position: 0, color: 'bg-red-500', hex: '#ef4444' },
+            { id: 2, name: 'Kelompok 2', score: 0, position: 0, color: 'bg-blue-500', hex: '#3b82f6' },
+            { id: 3, name: 'Kelompok 3', score: 0, position: 0, color: 'bg-green-500', hex: '#22c55e' },
+            { id: 4, name: 'Kelompok 4', score: 0, position: 0, color: 'bg-yellow-400', hex: '#facc15' },
+            { id: 5, name: 'Kelompok 5', score: 0, position: 0, color: 'bg-purple-500', hex: '#a855f7' }
+        ];
+
+        let currentTurn = 0;
+        let isMoving = false;
+        let isAudioInitialized = false;
+
+        // --- AUDIO SYSTEM (Tone.js) ---
+        
+        // Synth untuk suara langkah (ketukan)
+        const stepSynth = new Tone.MembraneSynth().toDestination();
+        
+        // Synth untuk suara sukses/bonus (ceria)
+        const successSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.05, decay: 0.1, sustain: 0.3, release: 1 }
+        }).toDestination();
+
+        // Synth untuk suara gagal/penalti (rendah)
+        const failSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.1, decay: 0.2, sustain: 0.2, release: 0.5 }
+        }).toDestination();
+
+        // Synth untuk suara dadu dikocok (noise burst)
+        const noiseSynth = new Tone.NoiseSynth({
+            noise: { type: "white" },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0 }
+        }).toDestination();
+
+        async function initAudioContext() {
+            if (!isAudioInitialized) {
+                await Tone.start();
+                isAudioInitialized = true;
+                console.log("Audio Context Started");
+            }
+        }
+
+        function playDiceSound() {
+            if (!isAudioInitialized) return;
+            // Mainkan suara noise singkat berulang-ulang untuk simulasi kocokan
+            let time = Tone.now();
+            for(let i=0; i<5; i++) {
+                noiseSynth.triggerAttackRelease("16n", time + (i * 0.1));
+            }
+        }
+
+        function playStepSound() {
+            if (!isAudioInitialized) return;
+            stepSynth.triggerAttackRelease("C2", "8n");
+        }
+
+        function playSuccessSound() {
+            if (!isAudioInitialized) return;
+            const now = Tone.now();
+            successSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now);
+            successSynth.triggerAttackRelease(["C5", "E5", "G5"], "4n", now + 0.15);
+        }
+
+        function playFailSound() {
+            if (!isAudioInitialized) return;
+            const now = Tone.now();
+            failSynth.triggerAttackRelease(["G2", "Db3"], "4n", now);
+            failSynth.triggerAttackRelease(["F2", "B2"], "2n", now + 0.3);
+        }
+
+        function playModalPopSound() {
+            if (!isAudioInitialized) return;
+            successSynth.triggerAttackRelease("C5", "16n");
+        }
+
+        function playFanfareSound() {
+            if (!isAudioInitialized) return;
+            const now = Tone.now();
+            successSynth.triggerAttackRelease(["C4", "E4", "G4"], "8n", now);
+            successSynth.triggerAttackRelease(["F4", "A4", "C5"], "8n", now + 0.25);
+            successSynth.triggerAttackRelease(["G4", "B4", "D5"], "8n", now + 0.5);
+            successSynth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "2n", now + 0.75);
+        }
+
+        // --- GAME END LOGIC ---
+        function confirmEndGame() {
+            const modal = document.getElementById('confirm-modal');
+            const content = document.getElementById('confirm-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+            playModalPopSound();
+        }
+
+        function cancelEndGame() {
+            const content = document.getElementById('confirm-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                const modal = document.getElementById('confirm-modal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 200);
+        }
+
+        function executeEndGame() {
+            cancelEndGame(); // Tutup modal konfirmasi
+            setTimeout(showVictoryScreen, 300); // Tunggu modal tutup baru tampilkan klasemen
+        }
+
+        function showVictoryScreen() {
+            const modal = document.getElementById('victory-modal');
+            const content = document.getElementById('victory-content');
+            const leaderboardContainer = document.getElementById('leaderboard');
+            
+            // Urutkan kelompok berdasarkan skor tertinggi
+            const sortedGroups = [...groups].sort((a, b) => b.score - a.score);
+            
+            leaderboardContainer.innerHTML = '';
+            
+            sortedGroups.forEach((g, index) => {
+                let rankIcon = '';
+                let bgClass = 'bg-white/60';
+                let textClass = 'text-gray-800';
+                let borderClass = 'border-white/50';
+                
+                if (index === 0) {
+                    rankIcon = '<i class="fas fa-trophy text-yellow-500 text-3xl"></i>';
+                    bgClass = 'bg-gradient-to-r from-yellow-100 to-yellow-300 shadow-lg transform scale-105 z-10';
+                    textClass = 'text-yellow-900 font-black';
+                    borderClass = 'border-yellow-400';
+                } else if (index === 1) {
+                    rankIcon = '<i class="fas fa-medal text-gray-400 text-2xl"></i>';
+                    bgClass = 'bg-gray-100 shadow-md';
+                } else if (index === 2) {
+                    rankIcon = '<i class="fas fa-medal text-amber-700 text-2xl"></i>';
+                    bgClass = 'bg-orange-50 shadow-sm';
+                } else {
+                    rankIcon = `<span class="font-bold text-gray-400 text-xl">#${index + 1}</span>`;
+                }
+
+                leaderboardContainer.innerHTML += `
+                    <div class="flex items-center justify-between p-3 md:p-4 rounded-2xl ${bgClass} ${textClass} backdrop-blur-sm border ${borderClass}">
+                        <div class="flex items-center gap-3 md:gap-4">
+                            <div class="w-10 h-10 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-white shadow-inner">
+                                ${rankIcon}
+                            </div>
+                            <div class="text-left">
+                                <h3 class="text-lg md:text-xl font-bold leading-tight">${g.name}</h3>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="w-2 h-2 md:w-3 md:h-3 rounded-full ${g.color}"></span>
+                                    <span class="text-xs md:text-sm font-semibold opacity-70 border-l border-gray-300 pl-2">Petak: ${tilesData[g.position].name}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-right pl-2">
+                            <p class="text-2xl md:text-3xl font-black tracking-tight">${g.score}</p>
+                            <p class="text-[10px] md:text-xs uppercase font-bold tracking-widest opacity-60">Poin</p>
+                        </div>
+                    </div>
+                `;
+            });
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+                playFanfareSound();
+            }, 50);
+        }
+
+        // Tile Data Map (0 to 33 around the board)
+        // coordinates (x, y) are percentages relative to the board container width/height
+        // Types: 'question' (needs validation), 'penalty' (auto minus), 'special' (move)
+        const tilesData = [
+            /* 00 */ { name: "Mulai", points: 0, type: "safe", x: 9, y: 88, icon: 'fa-flag' },
+            
+            // Bottom Row (1-9)
+            /* 01 */ { name: "Misi", points: 20, type: "question", x: 17.5, y: 88, color: 'bg-blue-600', icon: 'fa-book-open' },
+            /* 02 */ { name: "Tantangan", points: 20, type: "question", x: 25.5, y: 88, color: 'bg-red-500', icon: 'fa-bolt' },
+            /* 03 */ { name: "Bonus", points: 30, type: "question", x: 33.5, y: 88, color: 'bg-green-600', icon: 'fa-gift' },
+            /* 04 */ { name: "Globalisasi", points: 30, type: "question", x: 42, y: 88, color: 'bg-yellow-400', icon: 'fa-globe' },
+            /* 05 */ { name: "Kejutan", points: -20, type: "penalty", x: 50.5, y: 88, color: 'bg-purple-600', icon: 'fa-hurricane' },
+            /* 06 */ { name: "Misi", points: 20, type: "question", x: 58.5, y: 88, color: 'bg-blue-600', icon: 'fa-book-open' },
+            /* 07 */ { name: "Tantangan", points: 20, type: "question", x: 67, y: 88, color: 'bg-red-500', icon: 'fa-bolt' },
+            /* 08 */ { name: "Bonus", points: 40, type: "question", x: 75, y: 88, color: 'bg-green-600', icon: 'fa-gift' },
+            /* 09 */ { name: "Globalisasi", points: 30, type: "question", x: 83.5, y: 88, color: 'bg-yellow-400', icon: 'fa-globe' },
+            
+            // Bottom Right Corner
+            /* 10 */ { name: "Berdagang", points: 0, type: "special", desc: "Maju 2 Langkah", actionVal: 2, x: 92, y: 88, color: 'bg-blue-300', icon: 'fa-ship' },
+            
+            // Right Column (11-16) (Moving UP)
+            /* 11 */ { name: "Kejutan", points: -20, type: "penalty", x: 92, y: 76.5, color: 'bg-purple-600', icon: 'fa-hurricane' },
+            /* 12 */ { name: "Misi", points: 20, type: "question", x: 92, y: 66, color: 'bg-blue-600', icon: 'fa-book-open' },
+            /* 13 */ { name: "Tantangan", points: 20, type: "question", x: 92, y: 55.5, color: 'bg-red-500', icon: 'fa-bolt' },
+            /* 14 */ { name: "Bonus", points: 50, type: "question", x: 92, y: 45, color: 'bg-green-600', icon: 'fa-gift' },
+            /* 15 */ { name: "Globalisasi", points: 30, type: "question", x: 92, y: 34.5, color: 'bg-yellow-400', icon: 'fa-globe' },
+            /* 16 */ { name: "Kejutan", points: 30, type: "question", x: 92, y: 24, color: 'bg-purple-600', icon: 'fa-star' }, // This one is positive in image
+            
+            // Top Right Corner
+            /* 17 */ { name: "Finish", points: 100, type: "finish", desc: "Juara Global", x: 92, y: 12, color: 'bg-red-500', icon: 'fa-flag-checkered' },
+            
+            // Top Row (18-26) (Moving LEFT)
+            /* 18 */ { name: "Globalisasi", points: 30, type: "question", x: 83.5, y: 12, color: 'bg-yellow-400', icon: 'fa-globe' },
+            /* 19 */ { name: "Bonus", points: 40, type: "question", x: 75, y: 12, color: 'bg-green-600', icon: 'fa-gift' },
+            /* 20 */ { name: "Tantangan", points: 20, type: "question", x: 67, y: 12, color: 'bg-red-500', icon: 'fa-bolt' },
+            /* 21 */ { name: "Misi", points: 20, type: "question", x: 58.5, y: 12, color: 'bg-blue-600', icon: 'fa-book-open' },
+            /* 22 */ { name: "Kejutan", points: -20, type: "penalty", x: 50.5, y: 12, color: 'bg-purple-600', icon: 'fa-hurricane' },
+            /* 23 */ { name: "Globalisasi", points: 30, type: "question", x: 42, y: 12, color: 'bg-yellow-400', icon: 'fa-globe' },
+            /* 24 */ { name: "Bonus", points: 30, type: "question", x: 33.5, y: 12, color: 'bg-green-600', icon: 'fa-gift' },
+            /* 25 */ { name: "Tantangan", points: 20, type: "question", x: 25.5, y: 12, color: 'bg-red-500', icon: 'fa-bolt' },
+            /* 26 */ { name: "Misi", points: 20, type: "question", x: 17.5, y: 12, color: 'bg-blue-600', icon: 'fa-book-open' },
+            
+            // Top Left Corner
+            /* 27 */ { name: "Penjelajahan", points: 0, type: "special", desc: "Maju 3 Langkah", actionVal: 3, x: 9, y: 12, color: 'bg-blue-100', icon: 'fa-plane' },
+            
+            // Left Column (28-33) (Moving DOWN)
+            /* 28 */ { name: "Kejutan", points: -20, type: "penalty", x: 9, y: 24, color: 'bg-purple-600', icon: 'fa-hurricane' },
+            /* 29 */ { name: "Globalisasi", points: 30, type: "question", x: 9, y: 34.5, color: 'bg-yellow-400', icon: 'fa-globe' },
+            /* 30 */ { name: "Tantangan", points: 20, type: "question", x: 9, y: 45, color: 'bg-red-500', icon: 'fa-bolt' },
+            /* 31 */ { name: "Bonus", points: 40, type: "question", x: 9, y: 55.5, color: 'bg-green-600', icon: 'fa-gift' },
+            /* 32 */ { name: "Misi", points: 20, type: "question", x: 9, y: 66, color: 'bg-blue-600', icon: 'fa-book-open' },
+            /* 33 */ { name: "Kejutan", points: 30, type: "question", x: 9, y: 76.5, color: 'bg-purple-600', icon: 'fa-star' }
+        ];
+
+        const totalTiles = tilesData.length; // 34 tiles
+
+        // --- UI RENDERING ---
+
+        function initGame() {
+            renderScoreboard();
+            renderTokens();
+            updateTurnUI();
+        }
+
+        function renderScoreboard() {
+            const container = document.getElementById('scoreboard');
+            container.innerHTML = '';
+            
+            // Sort by score for display, but keep original array intact for logic
+            const sortedGroups = [...groups].sort((a, b) => b.score - a.score);
+
+            sortedGroups.forEach((g, index) => {
+                const isCurrent = groups[currentTurn].id === g.id;
+                
+                const el = document.createElement('div');
+                el.className = `flex items-center justify-between p-3 rounded-xl border-2 transition-all ${isCurrent ? 'border-blue-500 bg-blue-50 shadow-md scale-105' : 'border-transparent bg-white shadow-sm'}`;
+                
+                el.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full ${g.color} text-white flex items-center justify-center font-bold shadow-inner border-2 border-white">
+                            ${g.id}
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-800 leading-tight">${g.name}</p>
+                            <p class="text-xs text-gray-500 font-medium">Posisi: ${tilesData[g.position].name}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-black text-lg text-blue-900">${g.score}</p>
+                        <p class="text-[10px] text-gray-400 font-bold uppercase">Poin</p>
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        function renderTokens() {
+            const container = document.getElementById('board-container');
+            container.innerHTML = ''; // Clear existing
+            
+            groups.forEach((g, index) => {
+                const token = document.createElement('div');
+                token.id = `token-${index}`;
+                token.className = `token w-6 h-6 md:w-8 md:h-8 rounded-full ${g.color} text-xs md:text-sm`;
+                token.innerText = g.id;
+                container.appendChild(token);
+                updateTokenPosition(index, g.position);
+            });
+        }
+
+        function updateTokenPosition(groupIndex, tileIndex) {
+            const token = document.getElementById(`token-${groupIndex}`);
+            const tile = tilesData[tileIndex];
+            
+            // Add slight offset so tokens on same tile don't overlap completely
+            const offsetX = (groupIndex % 3) * 1.5 - 1.5; 
+            const offsetY = Math.floor(groupIndex / 3) * 1.5 - 0.75;
+
+            token.style.left = `calc(${tile.x}% + ${offsetX}%)`;
+            token.style.top = `calc(${tile.y}% + ${offsetY}%)`;
+        }
+
+        function updateTurnUI() {
+            const indicator = document.getElementById('turn-indicator');
+            const g = groups[currentTurn];
+            indicator.innerHTML = `Giliran: <span style="color:${g.hex}">${g.name}</span>`;
+            renderScoreboard(); // Re-render to highlight active group
+        }
+
+        // --- GAME LOGIC ---
+
+        const diceFaces = [
+            '<i class="fas fa-dice-one"></i>',
+            '<i class="fas fa-dice-two"></i>',
+            '<i class="fas fa-dice-three"></i>',
+            '<i class="fas fa-dice-four"></i>',
+            '<i class="fas fa-dice-five"></i>',
+            '<i class="fas fa-dice-six"></i>'
+        ];
+
+        async function rollDice() {
+            if (isMoving) return;
+            isMoving = true;
+            
+            await initAudioContext();
+            
+            const btn = document.getElementById('btn-roll');
+            const d1El = document.getElementById('dice1');
+            const d2El = document.getElementById('dice2');
+            
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            d1El.classList.add('rolling');
+            d2El.classList.add('rolling');
+            
+            playDiceSound();
+
+            // Generate result
+            const r1 = Math.floor(Math.random() * 6) + 1;
+            const r2 = Math.floor(Math.random() * 6) + 1;
+            const totalRoll = r1 + r2;
+
+            // Wait for animation
+            await new Promise(r => setTimeout(r, 600));
+
+            d1El.classList.remove('rolling');
+            d2El.classList.remove('rolling');
+            
+            d1El.innerHTML = diceFaces[r1-1];
+            d2El.innerHTML = diceFaces[r2-1];
+
+            await moveTokenStepped(currentTurn, totalRoll);
+        }
+
+        // Move token one tile at a time for visual effect
+        async function moveTokenStepped(groupIndex, steps) {
+            const group = groups[groupIndex];
+            
+            for (let i = 0; i < steps; i++) {
+                group.position = (group.position + 1) % totalTiles;
+                updateTokenPosition(groupIndex, group.position);
+                
+                playStepSound();
+                await new Promise(r => setTimeout(r, 250)); 
+            }
+
+            // After finishing movement, handle the tile action
+            setTimeout(() => {
+                handleTileAction(groupIndex, group.position);
+            }, 400);
+        }
+
+        function handleTileAction(groupIndex, tileIndex) {
+            const tile = tilesData[tileIndex];
+            const group = groups[groupIndex];
+
+            // Setup Modal Content
+            document.getElementById('modal-title').innerText = tile.name;
+            document.getElementById('modal-group-num').innerText = group.id;
+            document.getElementById('modal-group-num').style.color = group.hex;
+            
+            const pointsText = tile.points > 0 ? `+${tile.points} Global` : (tile.points < 0 ? `${tile.points} Global` : '');
+            document.getElementById('modal-points').innerText = pointsText;
+            
+            const header = document.getElementById('modal-header');
+            header.className = `p-6 text-center text-white relative ${tile.color || 'bg-gray-600'}`;
+            
+            document.getElementById('modal-icon').className = `fas ${tile.icon} text-3xl`;
+            
+            const actionsDiv = document.getElementById('modal-actions');
+            actionsDiv.innerHTML = ''; // Clear old buttons
+
+            let descText = "";
+
+            if (tile.type === 'safe') {
+                descText = "Zona Aman. Tidak ada aktivitas.";
+                actionsDiv.innerHTML = `<button onclick="closeModal(0)" class="px-8 py-3 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded-xl w-full">Lanjut</button>`;
+            } 
+            else if (tile.type === 'question') {
+                descText = "Guru membacakan soal dari kartu. Apakah jawaban kelompok ini benar?";
+                actionsDiv.innerHTML = `
+                    <button onclick="closeModal(${tile.points})" class="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2">
+                        <i class="fas fa-check-circle"></i> Benar (+${tile.points})
+                    </button>
+                    <button onclick="closeModal(0)" class="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2">
+                        <i class="fas fa-times-circle"></i> Salah (0)
+                    </button>
+                `;
+            }
+            else if (tile.type === 'penalty') {
+                descText = "Waduh! Anda terkena Kejutan tidak menyenangkan.";
+                actionsDiv.innerHTML = `
+                    <button onclick="closeModal(${tile.points})" class="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl w-full flex items-center justify-center gap-2">
+                        <i class="fas fa-exclamation-triangle"></i> Terima Hukuman (${tile.points})
+                    </button>
+                `;
+            }
+            else if (tile.type === 'special') {
+                descText = `Perintah: ${tile.desc}`;
+                actionsDiv.innerHTML = `
+                    <button onclick="executeSpecial(${tile.actionVal})" class="px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl w-full flex items-center justify-center gap-2">
+                        <i class="fas fa-forward"></i> Laksanakan
+                    </button>
+                `;
+            }
+            else if (tile.type === 'finish') {
+                descText = "Selamat! Anda mencapai garis Finish dan mendapatkan bonus!";
+                actionsDiv.innerHTML = `
+                    <button onclick="closeModal(${tile.points})" class="px-8 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-bold rounded-xl w-full flex items-center justify-center gap-2">
+                        <i class="fas fa-crown"></i> Klaim Bonus (+${tile.points})
+                    </button>
+                `;
+            }
+
+            document.getElementById('modal-desc').innerText = descText;
+            openModalUI();
+        }
+
+        function openModalUI() {
+            const modal = document.getElementById('action-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            playModalPopSound();
+
+            // Trigger animation
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeModalUI() {
+            return new Promise(resolve => {
+                const content = document.getElementById('modal-content');
+                content.classList.remove('scale-100', 'opacity-100');
+                content.classList.add('scale-95', 'opacity-0');
+                
+                setTimeout(() => {
+                    const modal = document.getElementById('action-modal');
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    resolve();
+                }, 200); // match transition duration
+            });
+        }
+
+        async function closeModal(pointsToAdd) {
+            await closeModalUI();
+            
+            if (pointsToAdd > 0) {
+                playSuccessSound();
+            } else if (pointsToAdd < 0) {
+                playFailSound();
+            }
+
+            // Apply points
+            if (pointsToAdd !== 0) {
+                groups[currentTurn].score += pointsToAdd;
+                
+                // Prevent negative scores if desired (optional)
+                if(groups[currentTurn].score < 0) groups[currentTurn].score = 0;
+            }
+
+            nextTurn();
+        }
+
+        async function executeSpecial(steps) {
+            await closeModalUI();
+            
+            // Move additional steps without ending turn yet
+            await moveTokenStepped(currentTurn, steps);
+            // Note: handleTileAction will be called again at the end of moveTokenStepped
+            // which could chain multiple specials, but based on the board, 
+            // landing after +2/+3 puts them on a standard tile.
+        }
+
+        function nextTurn() {
+            renderScoreboard(); // Update scores visually
+            
+            currentTurn = (currentTurn + 1) % groups.length;
+            updateTurnUI();
+            
+            // Re-enable dice
+            const btn = document.getElementById('btn-roll');
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+            isMoving = false;
+        }
+
+        // Initialize on load
+        window.onload = initGame;
+    </script>
+</body>
+</html>
